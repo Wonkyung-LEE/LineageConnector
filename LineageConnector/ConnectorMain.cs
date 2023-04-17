@@ -24,6 +24,15 @@ namespace LineageConnector
         private bool serverloading;
         private bool close_clicked;
 
+        [DllImport("dxwnd.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr dxwnd_Init();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
+
 
         public ConnectorMain()
         {
@@ -73,6 +82,10 @@ namespace LineageConnector
             string port = "2000";
 
             // 프로세스 생성
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.FileName = exportFile;
+            startInfo.UseShellExecute = false;
+
             Process process = new Process();
             process.StartInfo.UseShellExecute = true;
             process.StartInfo.FileName = exportFile;
@@ -85,7 +98,19 @@ namespace LineageConnector
             {
                 process.Start();
                 this.serverloading = false;
-                process.WaitForExit();
+                // Wait for the process to start
+                while (process.MainWindowHandle == IntPtr.Zero)
+                {
+                    Thread.Sleep(100);
+                    process.Refresh();
+                }
+                // Call dxwnd_Init to put the process in windowed mode
+                IntPtr hWnd = dxwnd_Init();
+                if (hWnd != IntPtr.Zero)
+                {
+                    SetParent(hWnd, process.MainWindowHandle);
+                    MoveWindow(hWnd, 0, 0, 800, 600, true);
+                }
             } catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
