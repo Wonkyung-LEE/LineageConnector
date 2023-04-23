@@ -39,11 +39,14 @@ namespace LineageConnector
             this.button2 = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.button3 = new System.Windows.Forms.Button();
+            this.progressBar_download = new System.Windows.Forms.ProgressBar();
+            this.label_Status = new System.Windows.Forms.Label();
+            this.label_Downloaded = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // button1
             // 
-            this.button1.Location = new System.Drawing.Point(30, 180);
+            this.button1.Location = new System.Drawing.Point(30, 265);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(140, 59);
             this.button1.TabIndex = 0;
@@ -83,7 +86,7 @@ namespace LineageConnector
             // 
             // button3
             // 
-            this.button3.Location = new System.Drawing.Point(188, 180);
+            this.button3.Location = new System.Drawing.Point(188, 265);
             this.button3.Name = "button3";
             this.button3.Size = new System.Drawing.Size(140, 59);
             this.button3.TabIndex = 4;
@@ -91,11 +94,40 @@ namespace LineageConnector
             this.button3.UseVisualStyleBackColor = true;
             this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
+            // progressBar_download
+            // 
+            this.progressBar_download.Location = new System.Drawing.Point(30, 121);
+            this.progressBar_download.Name = "progressBar_download";
+            this.progressBar_download.Size = new System.Drawing.Size(421, 37);
+            this.progressBar_download.TabIndex = 5;
+            // 
+            // label_Status
+            // 
+            this.label_Status.AutoSize = true;
+            this.label_Status.Font = new System.Drawing.Font("굴림", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(129)));
+            this.label_Status.Location = new System.Drawing.Point(26, 170);
+            this.label_Status.Name = "label_Status";
+            this.label_Status.Size = new System.Drawing.Size(164, 20);
+            this.label_Status.TabIndex = 6;
+            this.label_Status.Text = "접속기 시작 중...";
+            // 
+            // label_Downloaded
+            // 
+            this.label_Downloaded.AutoSize = true;
+            this.label_Downloaded.Location = new System.Drawing.Point(586, 131);
+            this.label_Downloaded.Name = "label_Downloaded";
+            this.label_Downloaded.Size = new System.Drawing.Size(17, 18);
+            this.label_Downloaded.TabIndex = 7;
+            this.label_Downloaded.Text = "/";
+            // 
             // ConnectorMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(10F, 18F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(938, 591);
+            this.Controls.Add(this.label_Downloaded);
+            this.Controls.Add(this.label_Status);
+            this.Controls.Add(this.progressBar_download);
             this.Controls.Add(this.button3);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.button2);
@@ -121,6 +153,9 @@ namespace LineageConnector
         private Button button2;
         private Label label1;
         private Button button3;
+        private ProgressBar progressBar_download;
+        private Label label_Status;
+        private Label label_Downloaded;
     }
 }
 

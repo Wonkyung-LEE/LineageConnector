@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -162,53 +163,50 @@ public static class SystemTimeHelper
     }
 
     /// <summary>
-    /// 시스템 시간을 time.nist.gov로부터 복구한다.
+    /// 시스템 시간을 NST Server로부터 복구한다.
     /// </summary>
     public static void SetRemoteSystemTime()
     {
-        Console.WriteLine(Process.GetCurrentProcess().Id);
-        string responseText = null;
+        // 인터넷 시간 서버에서 현재 UTC 시간을 가져온다.
+        string ntpServer = "pool.ntp.org";
+        IPAddress[] addresses = Dns.GetHostEntry(ntpServer).AddressList;
+        IPAddress ipAddress = addresses[0];
+        IPEndPoint ipEndPoint = new IPEndPoint(ipAddress, 123);
+        byte[] ntpData = new byte[48];
+        ntpData[0] = 0x1B;
+        var socket = new System.Net.Sockets.Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
-        try
-        {
-            using (var client = new TcpClient("time.nist.gov", 13))
-            using (var streamReader = new StreamReader(client.GetStream()))
-            {
-                // 인터넷 시간 불러오기
-                responseText = streamReader.ReadToEnd(); // "59442 21-08-16 14:28:19 50 0 0 585.3 UTC(NIST) *"
-                var utcDateTimeString = responseText.Substring(7, 17);
+        socket.Connect(ipEndPoint);
+        socket.Send(ntpData);
+        socket.Receive(ntpData);
+        socket.Close();
 
-                if (DateTime.TryParseExact(utcDateTimeString, "yy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTime utcDateTime) == false)
-                {
-                    Console.WriteLine(responseText);
-                }
+        // NTP 패킷에서 시간을 가져온다.
+        ulong intpart = (ulong)ntpData[40] << 24 | (ulong)ntpData[41] << 16 | (ulong)ntpData[42] << 8 | (ulong)ntpData[43];
+        ulong fractpart = (ulong)ntpData[44] << 24 | (ulong)ntpData[45] << 16 | (ulong)ntpData[46] << 8 | (ulong)ntpData[47];
+        ulong milliseconds = (intpart * 1000) + ((fractpart * 1000) / 0x100000000L);
 
-                var localDateTime = utcDateTime.ToLocalTime();
+        // 1970년 1월 1일 0시 0분 0초 UTC 기준으로부터 현재 UTC 시간까지의 경과 시간을 계산한다.
+        DateTime epoch = new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        DateTime networkDateTime = epoch.AddMilliseconds((long)milliseconds);
 
-                // PC에 적용하기
-                SYSTEMTIME st = new SYSTEMTIME();
-                st.Year = (ushort)localDateTime.Year;
-                st.Month = (ushort)localDateTime.Month;
-                st.Day = (ushort)localDateTime.Day;
-                st.Hour = (ushort)localDateTime.Hour;
-                st.Minute = (ushort)localDateTime.Minute;
-                st.Second = (ushort)localDateTime.Second;
-                st.Millisecond = (ushort)localDateTime.Millisecond;
+        // 시스템 시간.
+        DateTime systemDateTime = DateTime.Now;
 
-                bool result = SetLocalTime(ref st);
-                if (result == false)
-                {
-                    int lastError = Marshal.GetLastWin32Error();
-                    Console.WriteLine(lastError);
-                }
+        // 시스템 시간과 인터넷 시간의 차이를 계산한다.
+        TimeSpan timeDiff = networkDateTime - systemDateTime;
 
-                Console.WriteLine($"Response: {responseText}, DateTime: {localDateTime}");
-            }
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine("Exception: " + e.Message + "\n(" + responseText + ")");
-        }
+        // 시스템 시간을 인터넷 시간과 동기화.
+        SYSTEMTIME st = new SYSTEMTIME();
+        st.Year = (ushort)networkDateTime.Year;
+        st.Month = (ushort)networkDateTime.Month;
+        st.Day = (ushort)networkDateTime.Day;
+        st.Hour = (ushort)networkDateTime.Hour;
+        st.Minute = (ushort)networkDateTime.Minute;
+        st.Second = (ushort)networkDateTime.Second;
+        SetSystemTime(ref st);
+
+        Console.WriteLine("시스템 시간을 인터넷 시간과 동기화하였습니다.");
     }
 
     #endregion

@@ -16,23 +16,46 @@ using System.Threading;
 using System.Runtime.InteropServices;
 using LineageConnector.WindowsAPI;
 using LineageConnector.Properties;
+using System.Runtime.InteropServices;
 
 namespace LineageConnector
 {
     public partial class ConnectorMain : Form
     {
+        // Flag
         private bool serverloading;
         private bool close_clicked;
+        // DXWND
+        DXWND windowmode = null; //윈도우 모드에 사용되는 놈
+        private static string DXWND_PATH = Environment.CurrentDirectory; //\\DXWND 이런식으로 적으면 클라이언트\DXWND 폴더가 있는것
+        private static string DXWND_NAME = "WindowMode"; //DXWND 파일명
+        private static string WINDOW_MODE_TITLE_NAME = "lineage";
+        // Zipper
+        Zip zip = new Zip();
+        // Downloader
+        Downloader downloader = null;
+        // ref ProgressBar
+        private const long staticMB = 1024 * 1024;
 
+        /*
         [DllImport("dxwnd.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr dxwnd_Init();
 
         [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        [DllImport("dxwnd.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true, EntryPoint = "dxwnd_Exit")]
+        private static extern void dxwnd_Exit();
+
+        [DllImport("user32.dll", SetLastError = true)]
         private static extern bool SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
-
+        */
 
         public ConnectorMain()
         {
@@ -76,42 +99,37 @@ namespace LineageConnector
             // TODO : SystemTime.cs, SystemTimeHelper.cs, ProcessHelper.cs는 별도 dll로 작성
             // TODO : 각 서버에 대하여 사용 허가/불허를 컨트롤할 수 있도록. (접속기 인증서버)
             // TODO : 린투데이에 별도 후원페이지 작성하여 결제연동.
-            // string exportFile = Path.GetDirectoryName(Application.ExecutablePath) + "\\lin.exe";
-            string exportFile = Path.GetFullPath("D:\\lineage_kr_client_270\\") + "lin.exe";
-            string ip = "122.222.80.14";
-            string port = "2000";
-
-            // 프로세스 생성
-            ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = exportFile;
-            startInfo.UseShellExecute = false;
-
-            Process process = new Process();
-            process.StartInfo.UseShellExecute = true;
-            process.StartInfo.FileName = exportFile;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.WindowStyle = ProcessWindowStyle.Normal;
-            process.StartInfo.Arguments = ip;
-
+            //string START_FILE_NAME = Path.GetFullPath("D:\\GAMES\\Lineage_270\\") + "lin.exe";
+            // string START_FILE_NAME = Path.GetFullPath("D:\\lineage_kr_client_270\\") + "lin.exe";
+            string START_FILE_NAME = Path.GetFullPath("C:\\Windows\\System32\\") + "notepad.exe";
+            string SERVER_ADDRESS = "122.222.80.14";
+            int SERVER_PORT = 2000;
+           
             // 프로세스 시작
             try
             {
+                string[] XY = new string[2] { "800", "600" };
+                if (windowmode.EditINIStringForLineage(SERVER_ADDRESS, SERVER_PORT, START_FILE_NAME, XY[0], XY[1], WINDOW_MODE_TITLE_NAME))
+                {
+                    if (!windowmode.StartDXWND())
+                        MessageBox.Show("창모드 설정에 실패했습니다. 실행파일을 찾을 수 없습니다.");
+                }
+                else MessageBox.Show("창모드 설정에 실패했습니다. 설정 파일 수정에 실패했습니다.");
+
+                
+
+                /*
+                Process process = new Process();
+                process.StartInfo.UseShellExecute = false;
+                process.StartInfo.FileName = START_FILE_NAME;
+                // process.StartInfo.CreateNoWindow = true;
+                process.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                process.StartInfo.Arguments = SERVER_PORT.ToString();
                 process.Start();
+                */
                 this.serverloading = false;
-                // Wait for the process to start
-                while (process.MainWindowHandle == IntPtr.Zero)
-                {
-                    Thread.Sleep(100);
-                    process.Refresh();
-                }
-                // Call dxwnd_Init to put the process in windowed mode
-                IntPtr hWnd = dxwnd_Init();
-                if (hWnd != IntPtr.Zero)
-                {
-                    SetParent(hWnd, process.MainWindowHandle);
-                    MoveWindow(hWnd, 0, 0, 800, 600, true);
-                }
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
@@ -132,6 +150,8 @@ namespace LineageConnector
         {
             if (SystemTimeHelper.CheckPermission(DateTime.Now))
             {
+                // DXWND 종료
+                windowmode.ExitDXWND();
                 // 작업관리자 활성화
                 ProcessHelper.ReleaseManagement();
                 // 시스템 시간 동기화
@@ -145,10 +165,48 @@ namespace LineageConnector
 
         private void pre_process()
         {
+            // 창모드 파일 압축 풀기
+            if (!File.Exists(DXWND_NAME)) zip.UnzipFromMemory(Properties.Resources.WindowMode);
+            windowmode = new DXWND(DXWND_PATH);
+            downloader = new Downloader(progressBar_download, ProgressBarChanged);
             // 시스템 날짜 변경
             SystemTimeHelper.SetSystemTime(new DateTime(2004, 01, 01, 00, 00, 00));
             // 접속방해 서비스 검색
             // regdelete();
+        }
+
+        //다운로드할 때 프로그래스바 관련 함수 -> 다운 완료되면 압축 해제까지 해준다.
+        private async void ProgressBarChanged(long Max, long Current, string[] FileNames = null)
+        {
+            if (Max != 0 && Max == Current)
+            {
+                label_Status.Text = "압축을 해제합니다..";
+                if (FileNames == null || FileNames.Length == 0 || FileNames[0] == null || FileNames[0].Length == 0)
+                    label_Status.Text = "다운로드 한 파일을 찾을 수 없습니다.";
+                await Task.Run(() =>
+                {
+                    if (File.Exists(FileNames[0]))
+                        if (zip.Unzip(FileNames[0]))
+                            for (int i = 0; i < FileNames.Length; i++)
+                                File.Delete(FileNames[i]); //다 깔았으니까 압축파일은 지워주자!
+                    Invoke(new MethodInvoker(delegate () {
+                        // label_Status.Text = "다운로드가 완료되었습니다. 실행해주세요!"; pictureBox_GameStart.Enabled = true; 
+                        label_Status.Text = "다운로드가 완료되었습니다. 실행해주세요!";
+                    }));
+
+                });
+            }
+            else
+            {
+                long _staticMB = staticMB;
+                if (Max < staticMB) _staticMB = 1;
+                string sMax = (Math.Round((double)Max / (double)_staticMB, 3)).ToString();
+                string sCurrent = (Math.Round((double)Current / (double)_staticMB, 3)).ToString();
+                if (Max >= staticMB)
+                    label_Downloaded.Text = sCurrent + "MB / " + sMax + "MB";
+                else
+                    label_Downloaded.Text = sCurrent + " / " + sMax;
+            }
         }
 
         private void regdelete()
